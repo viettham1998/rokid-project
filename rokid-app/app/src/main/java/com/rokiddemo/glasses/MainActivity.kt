@@ -55,6 +55,8 @@ class MainActivity : AppCompatActivity(), ClientBus.Listener {
     private var speech: SpeechManager? = null
     private var lastQuestion = ""
     private var lastAnswer = ""
+    private lateinit var talkButton: Button
+    private var isListening = false
 
     // Rotation options cycled by tapping.
     private val orientations = intArrayOf(
@@ -84,12 +86,13 @@ class MainActivity : AppCompatActivity(), ClientBus.Listener {
         val root = findViewById<View>(R.id.root)
         root.isFocusable = true
         root.isFocusableInTouchMode = true
-        root.setOnClickListener { capture() }                  // tap = capture a photo
-        root.setOnLongClickListener { startTalk(); true }      // long-press = talk
+        root.setOnClickListener { capture() }   // tap anywhere = capture a photo
         root.requestFocus()
 
-        // Rotation moved to a dedicated button (tap = capture, long-press = talk).
+        // Buttons (long-press is intercepted by YodaOS, so we use tappable buttons).
         findViewById<Button>(R.id.rotateButton).setOnClickListener { cycleOrientation() }
+        talkButton = findViewById(R.id.talkButton)
+        talkButton.setOnClickListener { toggleTalk() }
 
         discovery = DiscoveryClient(this)
         ensurePermissions()
@@ -101,12 +104,15 @@ class MainActivity : AppCompatActivity(), ClientBus.Listener {
         ContextCompat.checkSelfPermission(this, p) == PackageManager.PERMISSION_GRANTED
 
     private fun ensurePermissions() {
+        // Start whatever is already granted RIGHT NOW (don't gate the camera behind
+        // the mic dialog), then ask for anything still missing.
+        if (granted(Manifest.permission.CAMERA)) startCamera()
+        if (granted(Manifest.permission.RECORD_AUDIO)) initSpeech()
+
         val needed = mutableListOf<String>()
         if (!granted(Manifest.permission.CAMERA)) needed.add(Manifest.permission.CAMERA)
         if (!granted(Manifest.permission.RECORD_AUDIO)) needed.add(Manifest.permission.RECORD_AUDIO)
-        if (needed.isEmpty()) {
-            startCamera(); initSpeech()
-        } else {
+        if (needed.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, needed.toTypedArray(), REQ_PERMS)
         }
     }
@@ -158,25 +164,35 @@ class MainActivity : AppCompatActivity(), ClientBus.Listener {
             speech = SpeechManager(
                 context = this,
                 onResult = { text -> onSpeechResult(text) },
-                onState = { s -> speechText.text = s }
+                onState = { s -> onSpeechState(s) }
             ).also { it.init() }
         }
-        if (speech?.available == true) {
-            speechText.text = "🎙️ Long-press to talk"
+        if (speech?.available == true && !isListening) {
+            speechText.text = "🎤 Tap Talk to speak"
         }
     }
 
-    /** Long-press handler: start listening for a spoken question. */
-    private fun startTalk() {
+    /** Talk button: tap to start listening, tap again to stop. */
+    private fun toggleTalk() {
         val sp = speech
         if (sp == null || !sp.available) {
             speechText.text = "Speech not available (see log)"
             return
         }
-        sp.startListening()
+        if (isListening) sp.stopListening() else sp.startListening()
+        // Button label is driven by onSpeechState() based on recognizer callbacks.
+    }
+
+    /** Reflect recognizer state in the UI + Talk button. */
+    private fun onSpeechState(s: String) {
+        speechText.text = s
+        isListening = s.contains("Listening")
+        talkButton.text = if (isListening) "⏹ Stop" else "🎤 Talk"
     }
 
     private fun onSpeechResult(text: String) {
+        isListening = false
+        talkButton.text = "🎤 Talk"
         lastQuestion = text
         lastAnswer = "…"
         renderSpeech()
@@ -192,6 +208,10 @@ class MainActivity : AppCompatActivity(), ClientBus.Listener {
         ClientBus.listener = this
         onState(ClientBus.lastStatus)
         startConnecting()
+        // Make sure camera/speech are running (e.g. after returning from the
+        // system voice UI). Guards inside prevent double init.
+        if (granted(Manifest.permission.CAMERA)) startCamera()
+        if (granted(Manifest.permission.RECORD_AUDIO)) initSpeech()
     }
 
     override fun onStop() {

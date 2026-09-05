@@ -74,14 +74,22 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="👆 Tap = capture   •   Long-press = talk 🎙️"
+            android:text="👆 Tap = capture photo"
             android:textColor="#4FC3F7"
             android:textSize="13sp" />
+
+        <Button
+            android:id="@+id/talkButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="0dp"
+            android:text="🎤 Talk" />
 
         <Button
             android:id="@+id/rotateButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
             android:minWidth="0dp"
             android:text="⟳" />
     </LinearLayout>

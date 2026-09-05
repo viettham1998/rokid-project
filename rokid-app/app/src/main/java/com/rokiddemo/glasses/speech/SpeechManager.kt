@@ -64,6 +64,11 @@ class SpeechManager(
         }
     }
 
+    /** Stop capturing audio and process what was heard so far. */
+    fun stopListening() {
+        try { recognizer?.stopListening() } catch (_: Exception) {}
+    }
+
     fun destroy() {
         try { recognizer?.destroy() } catch (_: Exception) {}
         recognizer = null
