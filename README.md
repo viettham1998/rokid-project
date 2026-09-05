@@ -247,3 +247,38 @@ which displays the live feed.
   Camera in the glasses' app settings.
 - **Connected but no image on phone** — confirm the phone is on the same Wi-Fi and the
   glasses status shows a rising `sent N` count.
+
+### Latency notes
+`CameraStreamer` sends latest-frame-only (drops a frame if the WS queue isn't empty),
+runs at 480px / JPEG q60 / up to ~8 FPS. To trade quality for speed, lower `maxDim`
+(e.g. 360) and `jpegQuality` (e.g. 50) in `CameraStreamer.kt`. A 5 GHz Wi-Fi helps.
+
+---
+
+# Phase 3 — Object detection
+
+**Goal:** the phone runs object detection on incoming frames and sends labels back
+to the glasses, which show an **AI VISION** panel.
+
+### What was added
+- **Model:** `android-phone-app/app/src/main/assets/efficientdet_lite0.tflite`
+  (EfficientDet-Lite0 int8, COCO-80 classes).
+- **Phone** `vision/ObjectDetectorHelper` (MediaPipe `ObjectDetector`) +
+  `core/FrameProcessor` (one worker, latest-frame-only). Each frame → detect →
+  `DETECTION_RESULT` JSON broadcast to the glasses + a detections list on the phone.
+- **Glasses** parse `DETECTION_RESULT` → render the **AI VISION** panel (label + %).
+- **Protocol:** `{ "type":"DETECTION_RESULT", "objects":[ {label, confidence, bbox{x,y,width,height}} ] }`
+  (bbox is normalized 0..1 for a future overlay).
+
+### Build, deploy, test
+1. `.\tools\build.ps1 -InstallPhone`, relaunch **Rokid Phone Server**.
+2. Rebuild + push the glasses APK, install via Rokid-APKs (CXR-L).
+3. Point the glasses at common objects (person, laptop, bottle, chair, phone, cup…).
+   - Phone: preview + `Detections:` list.
+   - Glasses: `AI VISION` panel updating with labels + confidence.
+
+### Troubleshooting
+- **Phone crashes on launch / `Detect error`** — check the model exists in assets and
+  `aaptOptions { noCompress 'tflite' }` is present.
+- **Panel says `(no objects)`** — nothing above the score threshold; point at clear
+  objects or lower `scoreThreshold` in `ObjectDetectorHelper` (default 0.4).
