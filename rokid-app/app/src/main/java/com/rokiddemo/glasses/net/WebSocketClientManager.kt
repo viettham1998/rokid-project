@@ -61,7 +61,10 @@ class WebSocketClientManager {
      */
     fun sendBytes(bytes: ByteArray): Boolean {
         val s = ws ?: return false
-        if (s.queueSize() > 1_000_000) return false   // ~1 MB already waiting -> skip
+        // Latest-frame-only: if the previous frame hasn't fully gone out yet, drop
+        // this one. This keeps latency low instead of building a backlog (which is
+        // what makes the feed feel laggy/delayed).
+        if (s.queueSize() > 0L) return false
         return s.send(ByteString.of(*bytes))
     }
 

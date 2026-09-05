@@ -26,9 +26,9 @@ import java.util.concurrent.Executors
 class CameraStreamer(
     private val context: Context,
     private val lifecycleOwner: LifecycleOwner,
-    private val minIntervalMs: Long = 250,   // ~4 FPS
-    private val maxDim: Int = 640,
-    private val jpegQuality: Int = 70,
+    private val minIntervalMs: Long = 120,   // cap ~8 FPS; real rate self-paces to the network
+    private val maxDim: Int = 480,
+    private val jpegQuality: Int = 60,
     private val onJpeg: (ByteArray) -> Unit
 ) {
     private val exec = Executors.newSingleThreadExecutor()
@@ -89,36 +89,37 @@ class CameraStreamer(
         }
     }
 
-    /** RGBA_8888 ImageProxy -> upright, downscaled JPEG. */
+    // Reused across frames to avoid per-frame allocation churn (GC pauses = jank).
+    private val jpegBuffer = ByteArrayOutputStream(64 * 1024)
+
+    /**
+     * RGBA_8888 ImageProxy -> upright, downscaled JPEG in as few allocations as
+     * possible: one bitmap from the buffer, then a SINGLE createBitmap that crops
+     * padding + rotates + scales in one pass. Both bitmaps are recycled.
+     */
     private fun toJpeg(proxy: ImageProxy): ByteArray? {
         val plane = proxy.planes[0]
         val pixelStride = plane.pixelStride
-        val rowStride = plane.rowStride
-        val rowPadding = rowStride - pixelStride * proxy.width
-        val paddedWidth = proxy.width + rowPadding / pixelStride
+        val paddedWidth = plane.rowStride / pixelStride
+        val realW = proxy.width
+        val realH = proxy.height
 
-        var bmp = Bitmap.createBitmap(paddedWidth, proxy.height, Bitmap.Config.ARGB_8888)
-        bmp.copyPixelsFromBuffer(plane.buffer)
-        if (paddedWidth != proxy.width) {
-            bmp = Bitmap.createBitmap(bmp, 0, 0, proxy.width, proxy.height)
-        }
+        val src = Bitmap.createBitmap(paddedWidth, realH, Bitmap.Config.ARGB_8888)
+        src.copyPixelsFromBuffer(plane.buffer)
 
         val rot = proxy.imageInfo.rotationDegrees
-        if (rot != 0) {
-            val m = Matrix().apply { postRotate(rot.toFloat()) }
-            bmp = Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, m, true)
-        }
+        val scale = (maxDim.toFloat() / maxOf(realW, realH)).coerceAtMost(1f)
+        val m = Matrix()
+        if (rot != 0) m.postRotate(rot.toFloat())
+        if (scale < 1f) m.postScale(scale, scale)
 
-        val longest = maxOf(bmp.width, bmp.height)
-        if (longest > maxDim) {
-            val scale = maxDim.toFloat() / longest
-            bmp = Bitmap.createScaledBitmap(
-                bmp, (bmp.width * scale).toInt(), (bmp.height * scale).toInt(), true
-            )
-        }
+        // Crop the row padding (source rect = realW x realH) + rotate + scale at once.
+        val out = Bitmap.createBitmap(src, 0, 0, realW, realH, m, true)
+        if (out !== src) src.recycle()
 
-        val out = ByteArrayOutputStream()
-        bmp.compress(Bitmap.CompressFormat.JPEG, jpegQuality, out)
-        return out.toByteArray()
+        jpegBuffer.reset()
+        out.compress(Bitmap.CompressFormat.JPEG, jpegQuality, jpegBuffer)
+        out.recycle()
+        return jpegBuffer.toByteArray()
     }
 }
