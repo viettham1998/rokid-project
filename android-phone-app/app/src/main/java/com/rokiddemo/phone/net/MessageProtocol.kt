@@ -23,7 +23,9 @@ object MessageProtocol {
     const val DETECTION_RESULT = "DETECTION_RESULT"
     const val SPEECH_RESULT = "SPEECH_RESULT"
     const val ASSISTANT_RESPONSE = "ASSISTANT_RESPONSE"
-    const val AUDIO = "AUDIO"
+    const val AUDIO_START = "AUDIO_START"
+    const val AUDIO_CHUNK = "AUDIO_CHUNK"
+    const val AUDIO_END = "AUDIO_END"
     const val STATUS = "STATUS"
 
     /** Returns the "type" of a raw text message, or null if it isn't valid JSON. */

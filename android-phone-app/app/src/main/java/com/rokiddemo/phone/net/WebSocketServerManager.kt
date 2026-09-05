@@ -4,6 +4,7 @@ import com.rokiddemo.phone.ServerBus
 import org.java_websocket.WebSocket
 import org.java_websocket.handshake.ClientHandshake
 import org.java_websocket.server.WebSocketServer
+import java.io.ByteArrayOutputStream
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.util.Collections
@@ -18,9 +19,14 @@ import java.util.Collections
  * Phase 1 behaviour: on a HELLO message, reply with HELLO_ACK. Later phases add
  * more `when (type)` branches in onMessage().
  */
-class WebSocketServerManager(private val serverPort: Int) : WebSocketServer(InetSocketAddress(serverPort)) {
+class WebSocketServerManager(private val serverPort: Int) :
+    WebSocketServer(InetSocketAddress(serverPort)) {
 
     private val clients = Collections.synchronizedSet(HashSet<WebSocket>())
+
+    // Audio arrives chunked (small frames avoid Java-WebSocket's frame-size limit);
+    // we reassemble here and hand the full utterance to onAudio at AUDIO_END.
+    private val audioBuf = ByteArrayOutputStream()
 
     /** Called for each incoming JPEG frame (binary). Set by App to run detection. */
     var onBinary: ((ByteArray) -> Unit)? = null
@@ -59,8 +65,16 @@ class WebSocketServerManager(private val serverPort: Int) : WebSocketServer(Inet
                 conn.send(ack)
                 ServerBus.log("→ $ack")
             }
-            MessageProtocol.AUDIO -> {
-                onAudio?.invoke(MessageProtocol.pcmOf(message))
+            MessageProtocol.AUDIO_START -> synchronized(audioBuf) { audioBuf.reset() }
+            MessageProtocol.AUDIO_CHUNK -> {
+                val b = MessageProtocol.pcmOf(message)
+                synchronized(audioBuf) { audioBuf.write(b) }
+            }
+            MessageProtocol.AUDIO_END -> {
+                val pcm = synchronized(audioBuf) {
+                    val a = audioBuf.toByteArray(); audioBuf.reset(); a
+                }
+                onAudio?.invoke(pcm)
             }
             else -> {
                 // Other types ignored.

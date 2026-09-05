@@ -18,7 +18,9 @@ object MessageProtocol {
     const val DETECTION_RESULT = "DETECTION_RESULT"
     const val SPEECH_RESULT = "SPEECH_RESULT"
     const val ASSISTANT_RESPONSE = "ASSISTANT_RESPONSE"
-    const val AUDIO = "AUDIO"
+    const val AUDIO_START = "AUDIO_START"
+    const val AUDIO_CHUNK = "AUDIO_CHUNK"
+    const val AUDIO_END = "AUDIO_END"
     const val STATUS = "STATUS"
 
     fun typeOf(text: String): String? = try {
@@ -45,13 +47,23 @@ object MessageProtocol {
         put("timestamp", System.currentTimeMillis())
     }.toString()
 
-    /** Send a whole utterance as base64 PCM16 (16 kHz mono) for STT on the phone. */
-    fun audio(pcm: ByteArray, sampleRate: Int = 16000): String = JSONObject().apply {
-        put("type", AUDIO)
+    // Audio is sent in small chunks (each well under the WebSocket frame-size limit)
+    // between an AUDIO_START and AUDIO_END so the phone can reassemble the utterance.
+    fun audioStart(sampleRate: Int = 16000): String = JSONObject().apply {
+        put("type", AUDIO_START)
         put("sampleRate", sampleRate)
-        put("pcm", Base64.encodeToString(pcm, Base64.NO_WRAP))
-        put("timestamp", System.currentTimeMillis())
     }.toString()
+
+    fun audioChunk(pcmChunk: ByteArray): String = JSONObject().apply {
+        put("type", AUDIO_CHUNK)
+        put("pcm", Base64.encodeToString(pcmChunk, Base64.NO_WRAP))
+    }.toString()
+
+    fun audioEnd(): String = JSONObject().apply {
+        put("type", AUDIO_END)
+    }.toString()
+
+    const val CHUNK_BYTES = 16000  // ~0.5s of 16kHz PCM16 -> ~21KB base64, safe
 
     /** Extract the "text" field from an ASSISTANT_RESPONSE (or any message). */
     fun textOf(json: String): String = parse(json)?.optString("text").orEmpty()

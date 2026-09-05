@@ -4,9 +4,12 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.Context
 import android.content.Intent
+import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 
 /**
@@ -17,10 +20,14 @@ import androidx.core.app.NotificationCompat
  */
 class ServerService : Service() {
 
+    private var wifiLock: WifiManager.WifiLock? = null
+    private var wakeLock: PowerManager.WakeLock? = null
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
+        acquireLocks()
         val channelId = "rokid_server"
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val nm = getSystemService(NotificationManager::class.java)
@@ -38,6 +45,28 @@ class ServerService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+
+    /** Keep Wi-Fi + CPU awake so the socket survives screen-off / idle. */
+    private fun acquireLocks() {
+        try {
+            val wifi = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+            wifiLock = wifi.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "rokid:wifi").apply {
+                setReferenceCounted(false); acquire()
+            }
+            val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+            wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "rokid:cpu").apply {
+                setReferenceCounted(false); acquire()
+            }
+        } catch (e: Exception) {
+            ServerBus.log("Lock error: ${e.message}")
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        try { wifiLock?.release() } catch (_: Exception) {}
+        try { wakeLock?.release() } catch (_: Exception) {}
+    }
 
     companion object {
         private const val NOTIF_ID = 1

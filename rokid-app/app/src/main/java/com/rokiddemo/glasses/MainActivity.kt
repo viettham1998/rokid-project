@@ -169,7 +169,7 @@ class MainActivity : AppCompatActivity(), ClientBus.Listener {
             if (pcm.isEmpty()) { speechText.text = "🎤 No audio captured"; return }
             if (!connected) { speechText.text = "Not connected to phone"; return }
             speechText.text = "Processing…"
-            wsClient.send(MessageProtocol.audio(pcm, AudioRecorder.SAMPLE_RATE))
+            sendAudioChunked(pcm)
         } else {
             if (audioRecorder.start()) {
                 talkButton.text = "⏹ Stop"
@@ -178,6 +178,18 @@ class MainActivity : AppCompatActivity(), ClientBus.Listener {
                 speechText.text = "🎤 Mic unavailable (see log)"
             }
         }
+    }
+
+    /** Send the utterance as AUDIO_START + small AUDIO_CHUNKs + AUDIO_END. */
+    private fun sendAudioChunked(pcm: ByteArray) {
+        wsClient.send(MessageProtocol.audioStart(AudioRecorder.SAMPLE_RATE))
+        var off = 0
+        while (off < pcm.size) {
+            val end = minOf(off + MessageProtocol.CHUNK_BYTES, pcm.size)
+            wsClient.send(MessageProtocol.audioChunk(pcm.copyOfRange(off, end)))
+            off = end
+        }
+        wsClient.send(MessageProtocol.audioEnd())
     }
 
     private fun renderSpeech() {
