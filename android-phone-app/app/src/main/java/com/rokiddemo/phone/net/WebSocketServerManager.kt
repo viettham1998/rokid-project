@@ -25,8 +25,8 @@ class WebSocketServerManager(private val serverPort: Int) : WebSocketServer(Inet
     /** Called for each incoming JPEG frame (binary). Set by App to run detection. */
     var onBinary: ((ByteArray) -> Unit)? = null
 
-    /** Called with recognized speech text from the glasses (Phase 4). */
-    var onSpeech: ((String) -> Unit)? = null
+    /** Called with an utterance's PCM bytes from the glasses (Phase 4, Plan B). */
+    var onAudio: ((ByteArray) -> Unit)? = null
 
     init {
         isReuseAddr = true
@@ -59,8 +59,8 @@ class WebSocketServerManager(private val serverPort: Int) : WebSocketServer(Inet
                 conn.send(ack)
                 ServerBus.log("→ $ack")
             }
-            MessageProtocol.SPEECH_RESULT -> {
-                onSpeech?.invoke(MessageProtocol.textOf(message))
+            MessageProtocol.AUDIO -> {
+                onAudio?.invoke(MessageProtocol.pcmOf(message))
             }
             else -> {
                 // Other types ignored.

@@ -1,7 +1,7 @@
 package com.rokiddemo.phone
 
 import android.app.Application
-import com.rokiddemo.phone.assistant.CommandProcessor
+import com.rokiddemo.phone.core.AudioProcessor
 import com.rokiddemo.phone.core.FrameProcessor
 import com.rokiddemo.phone.net.DiscoveryBroadcaster
 import com.rokiddemo.phone.net.MessageProtocol
@@ -20,6 +20,7 @@ class App : Application() {
 
     private lateinit var discovery: DiscoveryBroadcaster
     private lateinit var frameProcessor: FrameProcessor
+    private lateinit var audioProcessor: AudioProcessor
 
     override fun onCreate() {
         super.onCreate()
@@ -30,12 +31,12 @@ class App : Application() {
         frameProcessor = FrameProcessor(this) { json -> server.broadcastText(json) }
         server.onBinary = { bytes -> frameProcessor.submit(bytes) }
 
-        // Speech: recognized text from glasses -> reply using latest detections.
-        server.onSpeech = { text ->
-            val answer = CommandProcessor.respond(text, frameProcessor.lastDetections)
-            server.broadcastText(MessageProtocol.assistantResponse(answer))
-            ServerBus.assistant(text, answer)
+        // Speech (Plan B): glasses stream PCM -> transcribe (Vosk) -> reply.
+        audioProcessor = AudioProcessor(this, { frameProcessor.lastDetections }) { q, a ->
+            server.broadcastText(MessageProtocol.assistantResponse(q, a))
+            ServerBus.assistant(q, a)
         }
+        server.onAudio = { pcm -> audioProcessor.submit(pcm) }
 
         try {
             server.start()

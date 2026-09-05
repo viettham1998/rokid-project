@@ -1,5 +1,6 @@
 package com.rokiddemo.phone.net
 
+import android.util.Base64
 import com.rokiddemo.phone.vision.DetectedObject
 import org.json.JSONArray
 import org.json.JSONObject
@@ -22,6 +23,7 @@ object MessageProtocol {
     const val DETECTION_RESULT = "DETECTION_RESULT"
     const val SPEECH_RESULT = "SPEECH_RESULT"
     const val ASSISTANT_RESPONSE = "ASSISTANT_RESPONSE"
+    const val AUDIO = "AUDIO"
     const val STATUS = "STATUS"
 
     /** Returns the "type" of a raw text message, or null if it isn't valid JSON. */
@@ -47,9 +49,17 @@ object MessageProtocol {
     /** Get the "text" field of a message (e.g. SPEECH_RESULT), or "". */
     fun textOf(json: String): String = parse(json)?.optString("text").orEmpty()
 
-    fun assistantResponse(text: String): String = JSONObject().apply {
+    /** Decode the base64 PCM of an AUDIO message. */
+    fun pcmOf(json: String): ByteArray = try {
+        Base64.decode(parse(json)?.optString("pcm").orEmpty(), Base64.NO_WRAP)
+    } catch (e: Exception) {
+        ByteArray(0)
+    }
+
+    fun assistantResponse(question: String, answer: String): String = JSONObject().apply {
         put("type", ASSISTANT_RESPONSE)
-        put("text", text)
+        put("question", question)
+        put("text", answer)
         put("timestamp", System.currentTimeMillis())
     }.toString()
 

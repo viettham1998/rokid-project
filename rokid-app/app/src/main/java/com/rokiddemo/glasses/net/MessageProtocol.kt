@@ -1,5 +1,6 @@
 package com.rokiddemo.glasses.net
 
+import android.util.Base64
 import org.json.JSONObject
 
 /**
@@ -17,6 +18,7 @@ object MessageProtocol {
     const val DETECTION_RESULT = "DETECTION_RESULT"
     const val SPEECH_RESULT = "SPEECH_RESULT"
     const val ASSISTANT_RESPONSE = "ASSISTANT_RESPONSE"
+    const val AUDIO = "AUDIO"
     const val STATUS = "STATUS"
 
     fun typeOf(text: String): String? = try {
@@ -40,6 +42,14 @@ object MessageProtocol {
     fun speechResult(text: String): String = JSONObject().apply {
         put("type", SPEECH_RESULT)
         put("text", text)
+        put("timestamp", System.currentTimeMillis())
+    }.toString()
+
+    /** Send a whole utterance as base64 PCM16 (16 kHz mono) for STT on the phone. */
+    fun audio(pcm: ByteArray, sampleRate: Int = 16000): String = JSONObject().apply {
+        put("type", AUDIO)
+        put("sampleRate", sampleRate)
+        put("pcm", Base64.encodeToString(pcm, Base64.NO_WRAP))
         put("timestamp", System.currentTimeMillis())
     }.toString()
 

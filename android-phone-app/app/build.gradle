@@ -47,4 +47,7 @@ dependencies {
 
     // On-device object detection (Phase 3)
     implementation 'com.google.mediapipe:tasks-vision:0.10.14'
+
+    // Offline speech-to-text (Phase 4, Plan B) — glasses have no STT service
+    implementation 'com.alphacephei:vosk-android:0.3.47'
 }

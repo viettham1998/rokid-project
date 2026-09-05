@@ -19,7 +19,7 @@ import com.rokiddemo.glasses.camera.CameraStreamer
 import com.rokiddemo.glasses.net.DiscoveryClient
 import com.rokiddemo.glasses.net.MessageProtocol
 import com.rokiddemo.glasses.net.WebSocketClientManager
-import com.rokiddemo.glasses.speech.SpeechManager
+import com.rokiddemo.glasses.speech.AudioRecorder
 import org.json.JSONObject
 
 /**
@@ -52,11 +52,10 @@ class MainActivity : AppCompatActivity(), ClientBus.Listener {
     @Volatile private var framesSent = 0
     private var lastCamUi = 0L
 
-    private var speech: SpeechManager? = null
+    private val audioRecorder = AudioRecorder()
     private var lastQuestion = ""
     private var lastAnswer = ""
     private lateinit var talkButton: Button
-    private var isListening = false
 
     // Rotation options cycled by tapping.
     private val orientations = intArrayOf(
@@ -104,10 +103,8 @@ class MainActivity : AppCompatActivity(), ClientBus.Listener {
         ContextCompat.checkSelfPermission(this, p) == PackageManager.PERMISSION_GRANTED
 
     private fun ensurePermissions() {
-        // Start whatever is already granted RIGHT NOW (don't gate the camera behind
-        // the mic dialog), then ask for anything still missing.
+        // Start the camera immediately if allowed; ask for anything still missing.
         if (granted(Manifest.permission.CAMERA)) startCamera()
-        if (granted(Manifest.permission.RECORD_AUDIO)) initSpeech()
 
         val needed = mutableListOf<String>()
         if (!granted(Manifest.permission.CAMERA)) needed.add(Manifest.permission.CAMERA)
@@ -124,8 +121,9 @@ class MainActivity : AppCompatActivity(), ClientBus.Listener {
         if (requestCode == REQ_PERMS) {
             if (granted(Manifest.permission.CAMERA)) startCamera()
             else camText.text = "Camera: permission DENIED"
-            if (granted(Manifest.permission.RECORD_AUDIO)) initSpeech()
-            else speechText.text = "Speech: mic permission DENIED"
+            if (!granted(Manifest.permission.RECORD_AUDIO)) {
+                speechText.text = "🎤 mic permission DENIED"
+            }
         }
     }
 
@@ -157,46 +155,29 @@ class MainActivity : AppCompatActivity(), ClientBus.Listener {
         }
     }
 
-    // ---- Speech (Phase 4) -------------------------------------------------
+    // ---- Speech (Phase 4, Plan B: record on glasses, STT on phone) --------
 
-    private fun initSpeech() {
-        if (speech == null) {
-            speech = SpeechManager(
-                context = this,
-                onResult = { text -> onSpeechResult(text) },
-                onState = { s -> onSpeechState(s) }
-            ).also { it.init() }
-        }
-        if (speech?.available == true && !isListening) {
-            speechText.text = "🎤 Tap Talk to speak"
-        }
-    }
-
-    /** Talk button: tap to start listening, tap again to stop. */
+    /** Talk button: tap to start recording, tap again to stop + send for STT. */
     private fun toggleTalk() {
-        val sp = speech
-        if (sp == null || !sp.available) {
-            speechText.text = "Speech not available (see log)"
-            return
+        if (!granted(Manifest.permission.RECORD_AUDIO)) {
+            speechText.text = "🎤 mic permission needed"
+            ensurePermissions(); return
         }
-        if (isListening) sp.stopListening() else sp.startListening()
-        // Button label is driven by onSpeechState() based on recognizer callbacks.
-    }
-
-    /** Reflect recognizer state in the UI + Talk button. */
-    private fun onSpeechState(s: String) {
-        speechText.text = s
-        isListening = s.contains("Listening")
-        talkButton.text = if (isListening) "⏹ Stop" else "🎤 Talk"
-    }
-
-    private fun onSpeechResult(text: String) {
-        isListening = false
-        talkButton.text = "🎤 Talk"
-        lastQuestion = text
-        lastAnswer = "…"
-        renderSpeech()
-        wsClient.send(MessageProtocol.speechResult(text))
+        if (audioRecorder.isRecording) {
+            val pcm = audioRecorder.stop()
+            talkButton.text = "🎤 Talk"
+            if (pcm.isEmpty()) { speechText.text = "🎤 No audio captured"; return }
+            if (!connected) { speechText.text = "Not connected to phone"; return }
+            speechText.text = "Processing…"
+            wsClient.send(MessageProtocol.audio(pcm, AudioRecorder.SAMPLE_RATE))
+        } else {
+            if (audioRecorder.start()) {
+                talkButton.text = "⏹ Stop"
+                speechText.text = "🎤 Recording… tap Stop"
+            } else {
+                speechText.text = "🎤 Mic unavailable (see log)"
+            }
+        }
     }
 
     private fun renderSpeech() {
@@ -208,10 +189,8 @@ class MainActivity : AppCompatActivity(), ClientBus.Listener {
         ClientBus.listener = this
         onState(ClientBus.lastStatus)
         startConnecting()
-        // Make sure camera/speech are running (e.g. after returning from the
-        // system voice UI). Guards inside prevent double init.
+        // Make sure the camera is running (guard inside prevents double init).
         if (granted(Manifest.permission.CAMERA)) startCamera()
-        if (granted(Manifest.permission.RECORD_AUDIO)) initSpeech()
     }
 
     override fun onStop() {
@@ -222,7 +201,7 @@ class MainActivity : AppCompatActivity(), ClientBus.Listener {
     override fun onDestroy() {
         super.onDestroy()
         camera?.stop()
-        speech?.destroy()
+        if (audioRecorder.isRecording) audioRecorder.stop()
         discovery.stop()
         wsClient.stop()
         handler.removeCallbacksAndMessages(null)
@@ -304,8 +283,15 @@ class MainActivity : AppCompatActivity(), ClientBus.Listener {
         }
     }
 
-    override fun onAssistant(text: String) {
-        lastAnswer = text
+    override fun onAssistant(json: String) {
+        try {
+            val o = JSONObject(json)
+            val q = o.optString("question")
+            if (q.isNotEmpty()) lastQuestion = q
+            lastAnswer = o.optString("text")
+        } catch (e: Exception) {
+            lastAnswer = json
+        }
         renderSpeech()
     }
 

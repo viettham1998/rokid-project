@@ -95,7 +95,7 @@ class WebSocketClientManager {
                     }
                     MessageProtocol.ASSISTANT_RESPONSE -> {
                         ClientBus.log("← $text")
-                        ClientBus.assistant(MessageProtocol.textOf(text))
+                        ClientBus.assistant(text)   // raw JSON: has question + text
                     }
                     else -> ClientBus.log("← $text")
                 }

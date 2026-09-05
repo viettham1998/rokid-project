@@ -16,6 +16,9 @@ apk/
 *.apk
 *.aab
 
+# ─── Vosk STT model (~40MB, regenerable via tools/fetch-models.ps1) ───
+android-phone-app/app/src/main/assets/vosk-model-*/
+
 # ─── Android Studio / IntelliJ ───
 .idea/
 *.iml
