@@ -43,6 +43,18 @@
         android:textSize="14sp" />
 
     <TextView
+        android:id="@+id/detectionText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:fontFamily="monospace"
+        android:lineSpacingExtra="2dp"
+        android:text="AI VISION\n(waiting…)"
+        android:textColor="#00E676"
+        android:textSize="22sp"
+        android:textStyle="bold" />
+
+    <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"

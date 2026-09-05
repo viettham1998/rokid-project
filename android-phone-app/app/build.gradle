@@ -22,6 +22,11 @@ android {
         }
     }
 
+    // Don't compress the TFLite model so MediaPipe can memory-map it from assets.
+    aaptOptions {
+        noCompress 'tflite'
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
@@ -39,4 +44,7 @@ dependencies {
     implementation 'org.java-websocket:Java-WebSocket:1.5.7'
     // Java-WebSocket logs through SLF4J; nop binding keeps it quiet
     implementation 'org.slf4j:slf4j-nop:1.7.36'
+
+    // On-device object detection (Phase 3)
+    implementation 'com.google.mediapipe:tasks-vision:0.10.14'
 }

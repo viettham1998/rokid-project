@@ -12,6 +12,7 @@ object ClientBus {
     interface Listener {
         fun onState(status: String)
         fun onLog(line: String)
+        fun onDetections(json: String)
     }
 
     @Volatile
@@ -30,5 +31,9 @@ object ClientBus {
 
     fun log(line: String) {
         main.post { listener?.onLog(line) }
+    }
+
+    fun detections(json: String) {
+        main.post { listener?.onDetections(json) }
     }
 }

@@ -22,6 +22,9 @@ class WebSocketServerManager(private val serverPort: Int) : WebSocketServer(Inet
 
     private val clients = Collections.synchronizedSet(HashSet<WebSocket>())
 
+    /** Called for each incoming JPEG frame (binary). Set by App to run detection. */
+    var onBinary: ((ByteArray) -> Unit)? = null
+
     init {
         isReuseAddr = true
         // Drop dead connections after 60s of silence (glasses will ping/reconnect).
@@ -63,7 +66,8 @@ class WebSocketServerManager(private val serverPort: Int) : WebSocketServer(Inet
     override fun onMessage(conn: WebSocket, message: ByteBuffer) {
         val arr = ByteArray(message.remaining())
         message.get(arr)
-        ServerBus.frame(arr)
+        ServerBus.frame(arr)      // preview on phone
+        onBinary?.invoke(arr)     // run object detection (Phase 3)
     }
 
     override fun onError(conn: WebSocket?, ex: Exception) {

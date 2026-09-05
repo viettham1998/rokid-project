@@ -2,6 +2,7 @@ package com.rokiddemo.phone
 
 import android.os.Handler
 import android.os.Looper
+import com.rokiddemo.phone.vision.DetectedObject
 
 /**
  * Dead-simple event bus between the WebSocket server (background threads) and
@@ -15,6 +16,7 @@ object ServerBus {
         fun onState(status: String, clients: Int)
         fun onLog(line: String)
         fun onFrame(jpeg: ByteArray)
+        fun onDetections(objects: List<DetectedObject>)
     }
 
     @Volatile
@@ -43,5 +45,9 @@ object ServerBus {
 
     fun frame(jpeg: ByteArray) {
         main.post { listener?.onFrame(jpeg) }
+    }
+
+    fun detections(objects: List<DetectedObject>) {
+        main.post { listener?.onDetections(objects) }
     }
 }

@@ -93,6 +93,16 @@
         android:contentDescription="Camera preview" />
 
     <TextView
+        android:id="@+id/detText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:fontFamily="monospace"
+        android:text="Detections: —"
+        android:textColor="#FFF176"
+        android:textSize="14sp" />
+
+    <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"

@@ -1,5 +1,7 @@
 package com.rokiddemo.phone.net
 
+import com.rokiddemo.phone.vision.DetectedObject
+import org.json.JSONArray
 import org.json.JSONObject
 
 /**
@@ -41,4 +43,23 @@ object MessageProtocol {
         put("device", "PHONE")
         put("timestamp", System.currentTimeMillis())
     }.toString()
+
+    fun detectionResult(objects: List<DetectedObject>): String {
+        val arr = JSONArray()
+        for (o in objects) {
+            arr.put(JSONObject().apply {
+                put("label", o.label)
+                put("confidence", o.score)
+                put("bbox", JSONObject().apply {
+                    put("x", o.x); put("y", o.y)
+                    put("width", o.width); put("height", o.height)
+                })
+            })
+        }
+        return JSONObject().apply {
+            put("type", DETECTION_RESULT)
+            put("timestamp", System.currentTimeMillis())
+            put("objects", arr)
+        }.toString()
+    }
 }

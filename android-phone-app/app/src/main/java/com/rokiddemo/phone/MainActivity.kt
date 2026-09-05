@@ -8,6 +8,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import com.rokiddemo.phone.util.NetworkUtils
+import com.rokiddemo.phone.vision.DetectedObject
 
 class MainActivity : AppCompatActivity(), ServerBus.Listener {
 
@@ -19,6 +20,7 @@ class MainActivity : AppCompatActivity(), ServerBus.Listener {
     private lateinit var logScroll: ScrollView
     private lateinit var preview: ImageView
     private lateinit var frameStats: TextView
+    private lateinit var detText: TextView
 
     private var frameCount = 0
     private var lastFpsTs = 0L
@@ -35,6 +37,7 @@ class MainActivity : AppCompatActivity(), ServerBus.Listener {
         logScroll = findViewById(R.id.logScroll)
         preview = findViewById(R.id.preview)
         frameStats = findViewById(R.id.frameStats)
+        detText = findViewById(R.id.detText)
 
         portText.text = "Port: ${App.PORT}"
         findViewById<Button>(R.id.refreshButton).setOnClickListener { refreshIps() }
@@ -84,6 +87,16 @@ class MainActivity : AppCompatActivity(), ServerBus.Listener {
                 .format(fps, jpeg.size / 1024, bmp.width, bmp.height)
             frameCount = 0
             lastFpsTs = now
+        }
+    }
+
+    override fun onDetections(objects: List<DetectedObject>) {
+        detText.text = if (objects.isEmpty()) {
+            "Detections: (none)"
+        } else {
+            "Detections:\n" + objects.joinToString("\n") {
+                "  %-14s %3d%%".format(it.label, (it.score * 100).toInt())
+            }
         }
     }
 }

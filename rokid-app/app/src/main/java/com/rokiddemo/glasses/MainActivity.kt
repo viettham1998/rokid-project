@@ -17,6 +17,7 @@ import androidx.core.content.ContextCompat
 import com.rokiddemo.glasses.camera.CameraStreamer
 import com.rokiddemo.glasses.net.DiscoveryClient
 import com.rokiddemo.glasses.net.WebSocketClientManager
+import org.json.JSONObject
 
 /**
  * Glasses UI — designed for a device with NO keyboard and an uncertain display
@@ -36,6 +37,7 @@ class MainActivity : AppCompatActivity(), ClientBus.Listener {
     private lateinit var statusText: TextView
     private lateinit var targetText: TextView
     private lateinit var camText: TextView
+    private lateinit var detectionText: TextView
     private lateinit var logText: TextView
     private lateinit var logScroll: ScrollView
 
@@ -66,6 +68,7 @@ class MainActivity : AppCompatActivity(), ClientBus.Listener {
         statusText = findViewById(R.id.statusText)
         targetText = findViewById(R.id.targetText)
         camText = findViewById(R.id.camText)
+        detectionText = findViewById(R.id.detectionText)
         logText = findViewById(R.id.logText)
         logScroll = findViewById(R.id.logScroll)
 
@@ -197,6 +200,26 @@ class MainActivity : AppCompatActivity(), ClientBus.Listener {
     override fun onLog(line: String) {
         logText.append(line + "\n")
         logScroll.post { logScroll.fullScroll(ScrollView.FOCUS_DOWN) }
+    }
+
+    override fun onDetections(json: String) {
+        try {
+            val arr = JSONObject(json).optJSONArray("objects")
+            if (arr == null || arr.length() == 0) {
+                detectionText.text = "AI VISION\n(no objects)"
+                return
+            }
+            val sb = StringBuilder("AI VISION\n")
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                val label = o.optString("label")
+                val conf = (o.optDouble("confidence", 0.0) * 100).toInt()
+                sb.append(String.format("%-12s %3d%%\n", label, conf))
+            }
+            detectionText.text = sb.toString().trimEnd()
+        } catch (e: Exception) {
+            // ignore malformed frames
+        }
     }
 
     companion object {

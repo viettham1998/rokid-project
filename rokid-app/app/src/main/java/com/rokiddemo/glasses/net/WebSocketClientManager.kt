@@ -84,9 +84,16 @@ class WebSocketClientManager {
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
-                ClientBus.log("← $text")
-                if (MessageProtocol.typeOf(text) == MessageProtocol.HELLO_ACK) {
-                    ClientBus.state("PHONE CONNECTED")
+                when (MessageProtocol.typeOf(text)) {
+                    MessageProtocol.HELLO_ACK -> {
+                        ClientBus.log("← $text")
+                        ClientBus.state("PHONE CONNECTED")
+                    }
+                    MessageProtocol.DETECTION_RESULT -> {
+                        // High-frequency: deliver to UI, don't spam the log.
+                        ClientBus.detections(text)
+                    }
+                    else -> ClientBus.log("← $text")
                 }
             }
 

@@ -1,6 +1,7 @@
 package com.rokiddemo.phone
 
 import android.app.Application
+import com.rokiddemo.phone.core.FrameProcessor
 import com.rokiddemo.phone.net.DiscoveryBroadcaster
 import com.rokiddemo.phone.net.WebSocketServerManager
 
@@ -16,11 +17,17 @@ class App : Application() {
         private set
 
     private lateinit var discovery: DiscoveryBroadcaster
+    private lateinit var frameProcessor: FrameProcessor
 
     override fun onCreate() {
         super.onCreate()
         instance = this
         server = WebSocketServerManager(PORT)
+
+        // Object detection: each incoming JPEG -> detect -> broadcast result to glasses.
+        frameProcessor = FrameProcessor(this) { json -> server.broadcastText(json) }
+        server.onBinary = { bytes -> frameProcessor.submit(bytes) }
+
         try {
             server.start()
         } catch (e: Exception) {
