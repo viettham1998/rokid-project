@@ -1,0 +1,32 @@
+# ─── Portable toolchain (regenerable, ~1GB — NEVER commit) ───
+toolchain/
+
+# ─── Gradle / build outputs ───
+.gradle/
+**/build/
+**/.cxx/
+**/.externalNativeBuild/
+
+# ─── Machine-specific SDK path ───
+local.properties
+**/local.properties
+
+# ─── Built / downloaded APKs (regenerable) ───
+apk/
+*.apk
+*.aab
+
+# ─── Android Studio / IntelliJ ───
+.idea/
+*.iml
+captures/
+
+# ─── Keystores / secrets ───
+*.jks
+*.keystore
+
+# ─── Logs / scratch / OS cruft ───
+*.log
+scratchpad/
+.DS_Store
+Thumbs.db

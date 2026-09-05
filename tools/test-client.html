@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rokid Demo — WebSocket Test Client</title>
+<style>
+  body { font-family: system-ui, sans-serif; background:#101418; color:#eee; margin:0; padding:20px; }
+  h1 { font-size:18px; }
+  input, button { font-size:16px; padding:8px; margin:4px 0; }
+  #url { width:280px; }
+  #log { background:#0a0d10; border:1px solid #333; height:50vh; overflow:auto;
+         padding:8px; font-family:monospace; font-size:13px; white-space:pre-wrap; }
+  .in { color:#4FC3F7; } .out { color:#AED581; } .sys { color:#999; } .err { color:#ff6b6b; }
+  #status { font-size:22px; font-weight:bold; }
+</style>
+</head>
+<body>
+  <h1>Rokid Demo — WebSocket Test Client</h1>
+  <p>Simulates the glasses. Point it at the phone server to verify Phase 1 without the glasses.</p>
+
+  <div>
+    <input id="url" value="ws://192.168.43.1:8080" />
+    <button id="connectBtn">Connect</button>
+    <button id="helloBtn" disabled>Send HELLO</button>
+    <button id="clearBtn">Clear</button>
+  </div>
+  <p>Status: <span id="status">idle</span></p>
+  <div id="log"></div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  let ws = null;
+
+  function log(msg, cls) {
+    const el = document.createElement('div');
+    if (cls) el.className = cls;
+    el.textContent = msg;
+    $('log').appendChild(el);
+    $('log').scrollTop = $('log').scrollHeight;
+  }
+  function setStatus(s, color) { $('status').textContent = s; $('status').style.color = color || '#fff'; }
+
+  function connect() {
+    const url = $('url').value.trim();
+    log('Connecting to ' + url, 'sys');
+    setStatus('connecting…', '#FFC107');
+    try { ws = new WebSocket(url); } catch (e) { log('Bad URL: ' + e.message, 'err'); return; }
+
+    ws.onopen = () => {
+      setStatus('connected', '#00E676');
+      $('helloBtn').disabled = false;
+      $('connectBtn').textContent = 'Disconnect';
+      sendHello();                       // auto-send HELLO like the real glasses do
+    };
+    ws.onmessage = (ev) => log('← ' + ev.data, 'in');
+    ws.onclose = (ev) => {
+      setStatus('closed (' + ev.code + ')', '#FFC107');
+      $('helloBtn').disabled = true;
+      $('connectBtn').textContent = 'Connect';
+    };
+    ws.onerror = () => log('WebSocket error (is the phone server running & reachable?)', 'err');
+  }
+
+  function sendHello() {
+    if (!ws || ws.readyState !== 1) return;
+    const msg = JSON.stringify({ type: 'HELLO', device: 'ROKID', timestamp: Date.now() });
+    ws.send(msg);
+    log('→ ' + msg, 'out');
+  }
+
+  $('connectBtn').onclick = () => {
+    if (ws && ws.readyState === 1) { ws.close(); } else { connect(); }
+  };
+  $('helloBtn').onclick = sendHello;
+  $('clearBtn').onclick = () => { $('log').innerHTML = ''; };
+</script>
+</body>
+</html>

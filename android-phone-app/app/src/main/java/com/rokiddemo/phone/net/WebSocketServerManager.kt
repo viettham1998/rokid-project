@@ -1,0 +1,73 @@
+package com.rokiddemo.phone.net
+
+import com.rokiddemo.phone.ServerBus
+import org.java_websocket.WebSocket
+import org.java_websocket.handshake.ClientHandshake
+import org.java_websocket.server.WebSocketServer
+import java.net.InetSocketAddress
+import java.util.Collections
+
+/**
+ * The phone is the SERVER. Rokid glasses (and the HTML test client) connect in.
+ *
+ * Binding to InetSocketAddress(port) with a wildcard address means we listen on
+ * ALL interfaces (regular Wi-Fi AND the phone's hotspot ap0 interface), which is
+ * exactly what we want for the demo.
+ *
+ * Phase 1 behaviour: on a HELLO message, reply with HELLO_ACK. Later phases add
+ * more `when (type)` branches in onMessage().
+ */
+class WebSocketServerManager(private val serverPort: Int) : WebSocketServer(InetSocketAddress(serverPort)) {
+
+    private val clients = Collections.synchronizedSet(HashSet<WebSocket>())
+
+    init {
+        isReuseAddr = true
+        // Drop dead connections after 60s of silence (glasses will ping/reconnect).
+        connectionLostTimeout = 60
+    }
+
+    override fun onStart() {
+        ServerBus.log("Server listening on 0.0.0.0:$serverPort")
+        ServerBus.state("LISTENING", 0)
+    }
+
+    override fun onOpen(conn: WebSocket, handshake: ClientHandshake?) {
+        clients.add(conn)
+        ServerBus.log("Client connected: ${conn.remoteSocketAddress}")
+        ServerBus.state("CLIENT CONNECTED", clients.size)
+    }
+
+    override fun onClose(conn: WebSocket?, code: Int, reason: String?, remote: Boolean) {
+        clients.remove(conn)
+        ServerBus.log("Client disconnected (code=$code)")
+        ServerBus.state(if (clients.isEmpty()) "LISTENING" else "CLIENT CONNECTED", clients.size)
+    }
+
+    override fun onMessage(conn: WebSocket, message: String) {
+        ServerBus.log("← $message")
+        when (MessageProtocol.typeOf(message)) {
+            MessageProtocol.HELLO -> {
+                val ack = MessageProtocol.helloAck()
+                conn.send(ack)
+                ServerBus.log("→ $ack")
+            }
+            else -> {
+                // Unknown types are ignored in Phase 1.
+            }
+        }
+    }
+
+    override fun onError(conn: WebSocket?, ex: Exception) {
+        ServerBus.log("Error: ${ex.message}")
+    }
+
+    /** Broadcast a text message to every connected client (used in later phases). */
+    fun broadcastText(text: String) {
+        synchronized(clients) {
+            for (c in clients) {
+                if (c.isOpen) c.send(text)
+            }
+        }
+    }
+}
