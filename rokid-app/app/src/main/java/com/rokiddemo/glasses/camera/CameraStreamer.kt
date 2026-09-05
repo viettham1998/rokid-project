@@ -26,17 +26,23 @@ import java.util.concurrent.Executors
 class CameraStreamer(
     private val context: Context,
     private val lifecycleOwner: LifecycleOwner,
-    private val minIntervalMs: Long = 120,   // cap ~8 FPS; real rate self-paces to the network
-    private val maxDim: Int = 480,
-    private val jpegQuality: Int = 60,
+    private val maxDim: Int = 640,
+    private val jpegQuality: Int = 75,
     private val onJpeg: (ByteArray) -> Unit
 ) {
     private val exec = Executors.newSingleThreadExecutor()
     private var provider: ProcessCameraProvider? = null
 
-    @Volatile private var lastSent = 0L
+    // Capture-on-demand: the analyzer keeps the camera warm but only emits a JPEG
+    // when a capture has been requested (a tap). No continuous streaming.
+    @Volatile private var captureRequested = false
     @Volatile var running = false
         private set
+
+    /** Ask for a single frame to be captured & sent on the next available frame. */
+    fun requestCapture() {
+        captureRequested = true
+    }
 
     fun start() {
         val future = ProcessCameraProvider.getInstance(context)
@@ -77,10 +83,9 @@ class CameraStreamer(
 
     private fun handle(proxy: ImageProxy) {
         try {
-            val now = System.currentTimeMillis()
-            if (now - lastSent < minIntervalMs) return
+            if (!captureRequested) return       // idle until a tap requests a capture
+            captureRequested = false
             val jpeg = toJpeg(proxy) ?: return
-            lastSent = now
             onJpeg(jpeg)
         } catch (e: Exception) {
             ClientBus.log("Frame error: ${e.message}")

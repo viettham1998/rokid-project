@@ -75,7 +75,8 @@ class MainActivity : AppCompatActivity(), ClientBus.Listener {
         val root = findViewById<View>(R.id.root)
         root.isFocusable = true
         root.isFocusableInTouchMode = true
-        root.setOnClickListener { cycleOrientation() }
+        root.setOnClickListener { capture() }                 // tap = capture a photo
+        root.setOnLongClickListener { cycleOrientation(); true } // long-press = rotate
         root.requestFocus()
 
         discovery = DiscoveryClient(this)
@@ -96,20 +97,27 @@ class MainActivity : AppCompatActivity(), ClientBus.Listener {
 
     private fun startCamera() {
         if (camera != null) return
-        camText.text = "Camera: starting…"
+        camText.text = "Camera: ready • TAP to capture"
         camera = CameraStreamer(this, this) { jpeg -> onJpeg(jpeg) }.also { it.start() }
     }
 
-    /** Called on the camera worker thread. Ships the frame when connected. */
+    /** Tap handler: capture one photo and send it for detection. */
+    private fun capture() {
+        val cam = camera
+        if (cam == null) { maybeStartCamera(); return }
+        if (!connected) { camText.text = "Camera: not connected to phone yet"; return }
+        cam.requestCapture()
+        camText.text = "Capturing…"
+    }
+
+    /** Called on the camera worker thread when a requested capture is ready. */
     private fun onJpeg(jpeg: ByteArray) {
-        if (connected && wsClient.sendBytes(jpeg)) framesSent++
-        val now = System.currentTimeMillis()
-        if (now - lastCamUi > 500) {
-            lastCamUi = now
-            val kb = jpeg.size / 1024
-            val msg = if (connected) "Camera: streaming • sent $framesSent • ${kb}KB/frame"
-                      else "Camera: ready • waiting for phone"
-            handler.post { camText.text = msg }
+        val sent = connected && wsClient.sendBytes(jpeg)
+        if (sent) framesSent++
+        val kb = jpeg.size / 1024
+        handler.post {
+            camText.text = if (sent) "Captured #$framesSent • ${kb}KB • TAP to capture again"
+                           else "Capture failed (not connected)"
         }
     }
 
@@ -179,11 +187,11 @@ class MainActivity : AppCompatActivity(), ClientBus.Listener {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        // Touchpad tap / D-pad centre / Enter all rotate the screen.
+        // Touchpad tap / D-pad centre / Enter = capture a photo.
         return when (keyCode) {
             KeyEvent.KEYCODE_DPAD_CENTER,
             KeyEvent.KEYCODE_ENTER,
-            KeyEvent.KEYCODE_SPACE -> { cycleOrientation(); true }
+            KeyEvent.KEYCODE_SPACE -> { capture(); true }
             else -> super.onKeyDown(keyCode, event)
         }
     }
