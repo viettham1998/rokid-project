@@ -14,6 +14,7 @@ object ServerBus {
     interface Listener {
         fun onState(status: String, clients: Int)
         fun onLog(line: String)
+        fun onFrame(jpeg: ByteArray)
     }
 
     @Volatile
@@ -38,5 +39,9 @@ object ServerBus {
 
     fun log(line: String) {
         main.post { listener?.onLog(line) }
+    }
+
+    fun frame(jpeg: ByteArray) {
+        main.post { listener?.onFrame(jpeg) }
     }
 }

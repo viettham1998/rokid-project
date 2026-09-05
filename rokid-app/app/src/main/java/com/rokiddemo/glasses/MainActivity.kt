@@ -1,7 +1,9 @@
 package com.rokiddemo.glasses
 
+import android.Manifest
 import android.content.Context
 import android.content.pm.ActivityInfo
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -10,6 +12,9 @@ import android.view.View
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import com.rokiddemo.glasses.camera.CameraStreamer
 import com.rokiddemo.glasses.net.DiscoveryClient
 import com.rokiddemo.glasses.net.WebSocketClientManager
 
@@ -30,11 +35,16 @@ class MainActivity : AppCompatActivity(), ClientBus.Listener {
 
     private lateinit var statusText: TextView
     private lateinit var targetText: TextView
+    private lateinit var camText: TextView
     private lateinit var logText: TextView
     private lateinit var logScroll: ScrollView
 
     @Volatile private var currentTarget: String? = null
     @Volatile private var connected = false
+
+    private var camera: CameraStreamer? = null
+    @Volatile private var framesSent = 0
+    private var lastCamUi = 0L
 
     // Rotation options cycled by tapping.
     private val orientations = intArrayOf(
@@ -55,6 +65,7 @@ class MainActivity : AppCompatActivity(), ClientBus.Listener {
         setContentView(R.layout.activity_main)
         statusText = findViewById(R.id.statusText)
         targetText = findViewById(R.id.targetText)
+        camText = findViewById(R.id.camText)
         logText = findViewById(R.id.logText)
         logScroll = findViewById(R.id.logScroll)
 
@@ -65,6 +76,51 @@ class MainActivity : AppCompatActivity(), ClientBus.Listener {
         root.requestFocus()
 
         discovery = DiscoveryClient(this)
+        maybeStartCamera()
+    }
+
+    // ---- Camera (Phase 2) -------------------------------------------------
+
+    private fun maybeStartCamera() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+            == PackageManager.PERMISSION_GRANTED) {
+            startCamera()
+        } else {
+            camText.text = "Camera: requesting permission…"
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), REQ_CAM)
+        }
+    }
+
+    private fun startCamera() {
+        if (camera != null) return
+        camText.text = "Camera: starting…"
+        camera = CameraStreamer(this, this) { jpeg -> onJpeg(jpeg) }.also { it.start() }
+    }
+
+    /** Called on the camera worker thread. Ships the frame when connected. */
+    private fun onJpeg(jpeg: ByteArray) {
+        if (connected && wsClient.sendBytes(jpeg)) framesSent++
+        val now = System.currentTimeMillis()
+        if (now - lastCamUi > 500) {
+            lastCamUi = now
+            val kb = jpeg.size / 1024
+            val msg = if (connected) "Camera: streaming • sent $framesSent • ${kb}KB/frame"
+                      else "Camera: ready • waiting for phone"
+            handler.post { camText.text = msg }
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int, permissions: Array<out String>, grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQ_CAM) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                startCamera()
+            } else {
+                camText.text = "Camera: permission DENIED"
+            }
+        }
     }
 
     override fun onStart() {
@@ -81,6 +137,7 @@ class MainActivity : AppCompatActivity(), ClientBus.Listener {
 
     override fun onDestroy() {
         super.onDestroy()
+        camera?.stop()
         discovery.stop()
         wsClient.stop()
         handler.removeCallbacksAndMessages(null)
@@ -145,6 +202,7 @@ class MainActivity : AppCompatActivity(), ClientBus.Listener {
     companion object {
         private const val PREFS = "rokid_demo"
         private const val KEY_ORIENT = "orient_index"
+        private const val REQ_CAM = 1001
 
         // Baked-in phone server address. Update this to the phone's Wi-Fi IP shown
         // on the "Rokid Phone Server" screen, then rebuild + push the glasses APK.

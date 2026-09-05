@@ -34,6 +34,15 @@
         android:textSize="14sp" />
 
     <TextView
+        android:id="@+id/camText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:text="Camera: idle"
+        android:textColor="#FFB74D"
+        android:textSize="14sp" />
+
+    <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"

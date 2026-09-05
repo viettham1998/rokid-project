@@ -5,6 +5,7 @@ import org.java_websocket.WebSocket
 import org.java_websocket.handshake.ClientHandshake
 import org.java_websocket.server.WebSocketServer
 import java.net.InetSocketAddress
+import java.nio.ByteBuffer
 import java.util.Collections
 
 /**
@@ -56,6 +57,13 @@ class WebSocketServerManager(private val serverPort: Int) : WebSocketServer(Inet
                 // Unknown types are ignored in Phase 1.
             }
         }
+    }
+
+    /** Binary frames are JPEG camera frames from the glasses (Phase 2). */
+    override fun onMessage(conn: WebSocket, message: ByteBuffer) {
+        val arr = ByteArray(message.remaining())
+        message.get(arr)
+        ServerBus.frame(arr)
     }
 
     override fun onError(conn: WebSocket?, ex: Exception) {

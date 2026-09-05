@@ -73,6 +73,26 @@
     </LinearLayout>
 
     <TextView
+        android:id="@+id/frameStats"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Camera feed: (waiting for frames…)"
+        android:textColor="#FFB74D"
+        android:textSize="14sp" />
+
+    <ImageView
+        android:id="@+id/preview"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="3"
+        android:layout_marginTop="4dp"
+        android:background="#000000"
+        android:adjustViewBounds="true"
+        android:scaleType="fitCenter"
+        android:contentDescription="Camera preview" />
+
+    <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"

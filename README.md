@@ -192,3 +192,58 @@ few seconds on their own.
   accept the RSA prompt (it may appear inside the glasses display).
 
 When Phase 1 is confirmed working, we move to **Phase 2 (camera streaming).**
+
+---
+
+## How the glasses app is ACTUALLY installed (real-hardware notes)
+
+The Rokid Glasses' standard **3-pin charging cable is power-only — no USB data**, so
+the PC never sees the glasses over adb (a 5-pin dev cable would be needed for USB
+adb). Instead we push the APK from the **Android phone** using the community app
+**[Rokid-APKs](https://github.com/Anezium/Rokid-APKs)** in **CXR-L / Hi Rokid mode**
+(needs the Hi Rokid app installed on the phone with the glasses connected; no dev
+credentials):
+
+1. `.\tools\build.ps1` to rebuild → `apk\rokid-glasses-debug.apk`.
+2. Push it to the phone: `adb -s <phone> push apk\rokid-glasses-debug.apk /sdcard/Download/`.
+3. On the phone: **Rokid-APKs → CXR-L / HI ROKID → AUTH → SELECT that APK → INSTALL CXR-L**.
+   - If it reports *join hotspot failed* (`加入热点失败`), just retry — it's a flaky
+     Wi-Fi Direct step.
+
+The glasses app needs **no keyboard**: it auto-discovers the phone over UDP broadcast
+and also has a baked-in default IP (`DEFAULT_HOST` in `MainActivity.kt`). **Tap the
+screen / touchpad to rotate** the display (saved). Put the glasses on the **same
+Wi-Fi as the phone**.
+
+---
+
+# Phase 2 — Camera streaming
+
+**Goal:** the glasses stream camera frames (JPEG, ~4 FPS, 640px, q70) to the phone,
+which displays the live feed.
+
+### What was added
+- **Glasses** `camera/CameraStreamer.kt` — CameraX `ImageAnalysis` grabs frames,
+  converts RGBA→Bitmap, rotates upright, downscales to 640px, JPEG-encodes, and sends
+  them as **binary** WebSocket frames (`WebSocketClientManager.sendBytes()`), throttled
+  to ~4 FPS with queue-based backpressure.
+- **Phone** `WebSocketServerManager.onMessage(ByteBuffer)` → `ServerBus.frame()` →
+  `MainActivity` decodes and shows the image in an `ImageView` with FPS / KB / resolution.
+- Text WS frames stay JSON control messages; **binary WS frames = JPEG camera frames.**
+
+### Build, deploy, test
+1. `.\tools\build.ps1 -InstallPhone` (or it's already reinstalled) and relaunch **Rokid Phone Server**.
+2. Rebuild + push the glasses APK and install via Rokid-APKs (see notes above).
+3. Launch **Rokid Glasses Demo**. If a **camera permission** prompt appears on the
+   glasses, accept it (tap touchpad).
+4. Expected:
+   - Glasses: `PHONE CONNECTED` (green) + `Camera: streaming • sent N • ~KB/frame`.
+   - Phone: live image updates + `Camera feed: ~4.0 FPS • ~30 KB/frame • 640x480`.
+
+### Troubleshooting
+- **Glasses show `Camera error: …`** — raw Camera2 may be gated by Rokid's SDK. Report
+  the message; the fix is to swap only `CameraStreamer` to the Rokid CXR camera API.
+- **`Camera: permission DENIED`** — re-open the app and accept the prompt, or grant
+  Camera in the glasses' app settings.
+- **Connected but no image on phone** — confirm the phone is on the same Wi-Fi and the
+  glasses status shows a rising `sent N` count.

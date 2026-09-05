@@ -8,6 +8,7 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import okio.ByteString
 import java.util.concurrent.TimeUnit
 
 /**
@@ -52,6 +53,16 @@ class WebSocketClientManager {
     fun send(text: String): Boolean {
         val s = ws ?: return false
         return s.send(text)
+    }
+
+    /**
+     * Send binary bytes (a JPEG frame). Drops the frame if the socket isn't open or
+     * if too much is already queued (backpressure — keeps latency from piling up).
+     */
+    fun sendBytes(bytes: ByteArray): Boolean {
+        val s = ws ?: return false
+        if (s.queueSize() > 1_000_000) return false   // ~1 MB already waiting -> skip
+        return s.send(ByteString.of(*bytes))
     }
 
     private fun connect() {
