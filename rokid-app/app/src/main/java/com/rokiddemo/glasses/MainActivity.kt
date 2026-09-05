@@ -9,6 +9,7 @@ import android.os.Handler
 import android.os.Looper
 import android.view.KeyEvent
 import android.view.View
+import android.widget.Button
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -16,7 +17,9 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.rokiddemo.glasses.camera.CameraStreamer
 import com.rokiddemo.glasses.net.DiscoveryClient
+import com.rokiddemo.glasses.net.MessageProtocol
 import com.rokiddemo.glasses.net.WebSocketClientManager
+import com.rokiddemo.glasses.speech.SpeechManager
 import org.json.JSONObject
 
 /**
@@ -38,6 +41,7 @@ class MainActivity : AppCompatActivity(), ClientBus.Listener {
     private lateinit var targetText: TextView
     private lateinit var camText: TextView
     private lateinit var detectionText: TextView
+    private lateinit var speechText: TextView
     private lateinit var logText: TextView
     private lateinit var logScroll: ScrollView
 
@@ -47,6 +51,10 @@ class MainActivity : AppCompatActivity(), ClientBus.Listener {
     private var camera: CameraStreamer? = null
     @Volatile private var framesSent = 0
     private var lastCamUi = 0L
+
+    private var speech: SpeechManager? = null
+    private var lastQuestion = ""
+    private var lastAnswer = ""
 
     // Rotation options cycled by tapping.
     private val orientations = intArrayOf(
@@ -69,31 +77,53 @@ class MainActivity : AppCompatActivity(), ClientBus.Listener {
         targetText = findViewById(R.id.targetText)
         camText = findViewById(R.id.camText)
         detectionText = findViewById(R.id.detectionText)
+        speechText = findViewById(R.id.speechText)
         logText = findViewById(R.id.logText)
         logScroll = findViewById(R.id.logScroll)
 
         val root = findViewById<View>(R.id.root)
         root.isFocusable = true
         root.isFocusableInTouchMode = true
-        root.setOnClickListener { capture() }                 // tap = capture a photo
-        root.setOnLongClickListener { cycleOrientation(); true } // long-press = rotate
+        root.setOnClickListener { capture() }                  // tap = capture a photo
+        root.setOnLongClickListener { startTalk(); true }      // long-press = talk
         root.requestFocus()
 
+        // Rotation moved to a dedicated button (tap = capture, long-press = talk).
+        findViewById<Button>(R.id.rotateButton).setOnClickListener { cycleOrientation() }
+
         discovery = DiscoveryClient(this)
-        maybeStartCamera()
+        ensurePermissions()
+    }
+
+    // ---- Permissions (camera + mic) --------------------------------------
+
+    private fun granted(p: String) =
+        ContextCompat.checkSelfPermission(this, p) == PackageManager.PERMISSION_GRANTED
+
+    private fun ensurePermissions() {
+        val needed = mutableListOf<String>()
+        if (!granted(Manifest.permission.CAMERA)) needed.add(Manifest.permission.CAMERA)
+        if (!granted(Manifest.permission.RECORD_AUDIO)) needed.add(Manifest.permission.RECORD_AUDIO)
+        if (needed.isEmpty()) {
+            startCamera(); initSpeech()
+        } else {
+            ActivityCompat.requestPermissions(this, needed.toTypedArray(), REQ_PERMS)
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int, permissions: Array<out String>, grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQ_PERMS) {
+            if (granted(Manifest.permission.CAMERA)) startCamera()
+            else camText.text = "Camera: permission DENIED"
+            if (granted(Manifest.permission.RECORD_AUDIO)) initSpeech()
+            else speechText.text = "Speech: mic permission DENIED"
+        }
     }
 
     // ---- Camera (Phase 2) -------------------------------------------------
-
-    private fun maybeStartCamera() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-            == PackageManager.PERMISSION_GRANTED) {
-            startCamera()
-        } else {
-            camText.text = "Camera: requesting permission…"
-            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), REQ_CAM)
-        }
-    }
 
     private fun startCamera() {
         if (camera != null) return
@@ -104,7 +134,7 @@ class MainActivity : AppCompatActivity(), ClientBus.Listener {
     /** Tap handler: capture one photo and send it for detection. */
     private fun capture() {
         val cam = camera
-        if (cam == null) { maybeStartCamera(); return }
+        if (cam == null) { ensurePermissions(); return }
         if (!connected) { camText.text = "Camera: not connected to phone yet"; return }
         cam.requestCapture()
         camText.text = "Capturing…"
@@ -121,17 +151,40 @@ class MainActivity : AppCompatActivity(), ClientBus.Listener {
         }
     }
 
-    override fun onRequestPermissionsResult(
-        requestCode: Int, permissions: Array<out String>, grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQ_CAM) {
-            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                startCamera()
-            } else {
-                camText.text = "Camera: permission DENIED"
-            }
+    // ---- Speech (Phase 4) -------------------------------------------------
+
+    private fun initSpeech() {
+        if (speech == null) {
+            speech = SpeechManager(
+                context = this,
+                onResult = { text -> onSpeechResult(text) },
+                onState = { s -> speechText.text = s }
+            ).also { it.init() }
         }
+        if (speech?.available == true) {
+            speechText.text = "🎙️ Long-press to talk"
+        }
+    }
+
+    /** Long-press handler: start listening for a spoken question. */
+    private fun startTalk() {
+        val sp = speech
+        if (sp == null || !sp.available) {
+            speechText.text = "Speech not available (see log)"
+            return
+        }
+        sp.startListening()
+    }
+
+    private fun onSpeechResult(text: String) {
+        lastQuestion = text
+        lastAnswer = "…"
+        renderSpeech()
+        wsClient.send(MessageProtocol.speechResult(text))
+    }
+
+    private fun renderSpeech() {
+        speechText.text = "You: $lastQuestion\nAI: $lastAnswer"
     }
 
     override fun onStart() {
@@ -149,6 +202,7 @@ class MainActivity : AppCompatActivity(), ClientBus.Listener {
     override fun onDestroy() {
         super.onDestroy()
         camera?.stop()
+        speech?.destroy()
         discovery.stop()
         wsClient.stop()
         handler.removeCallbacksAndMessages(null)
@@ -230,10 +284,15 @@ class MainActivity : AppCompatActivity(), ClientBus.Listener {
         }
     }
 
+    override fun onAssistant(text: String) {
+        lastAnswer = text
+        renderSpeech()
+    }
+
     companion object {
         private const val PREFS = "rokid_demo"
         private const val KEY_ORIENT = "orient_index"
-        private const val REQ_CAM = 1001
+        private const val REQ_PERMS = 1001
 
         // Baked-in phone server address. Update this to the phone's Wi-Fi IP shown
         // on the "Rokid Phone Server" screen, then rebuild + push the glasses APK.

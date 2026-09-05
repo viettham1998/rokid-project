@@ -21,6 +21,7 @@ class MainActivity : AppCompatActivity(), ServerBus.Listener {
     private lateinit var preview: ImageView
     private lateinit var frameStats: TextView
     private lateinit var detText: TextView
+    private lateinit var asrText: TextView
 
     private var frameCount = 0
     private var lastFpsTs = 0L
@@ -38,6 +39,7 @@ class MainActivity : AppCompatActivity(), ServerBus.Listener {
         preview = findViewById(R.id.preview)
         frameStats = findViewById(R.id.frameStats)
         detText = findViewById(R.id.detText)
+        asrText = findViewById(R.id.asrText)
 
         portText.text = "Port: ${App.PORT}"
         findViewById<Button>(R.id.refreshButton).setOnClickListener { refreshIps() }
@@ -98,5 +100,9 @@ class MainActivity : AppCompatActivity(), ServerBus.Listener {
                 "  %-14s %3d%%".format(it.label, (it.score * 100).toInt())
             }
         }
+    }
+
+    override fun onAssistant(question: String, answer: String) {
+        asrText.text = "You: $question\nAI: $answer"
     }
 }

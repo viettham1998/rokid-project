@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.BitmapFactory
 import com.rokiddemo.phone.ServerBus
 import com.rokiddemo.phone.net.MessageProtocol
+import com.rokiddemo.phone.vision.DetectedObject
 import com.rokiddemo.phone.vision.ObjectDetectorHelper
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
@@ -24,6 +25,10 @@ class FrameProcessor(
     private val exec = Executors.newSingleThreadExecutor()
     private val busy = AtomicBoolean(false)
 
+    /** Most recent detections — used by the assistant to answer "what do you see?". */
+    @Volatile var lastDetections: List<DetectedObject> = emptyList()
+        private set
+
     fun submit(jpeg: ByteArray) {
         if (!busy.compareAndSet(false, true)) return  // drop while busy
         exec.execute {
@@ -32,6 +37,7 @@ class FrameProcessor(
                 if (bmp != null) {
                     val objects = detector.detect(bmp)
                     bmp.recycle()
+                    lastDetections = objects
                     onResultJson(MessageProtocol.detectionResult(objects))
                     ServerBus.detections(objects)
                 }

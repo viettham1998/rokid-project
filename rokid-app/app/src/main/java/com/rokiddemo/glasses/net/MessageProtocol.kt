@@ -36,4 +36,13 @@ object MessageProtocol {
         put("device", "ROKID")
         put("timestamp", System.currentTimeMillis())
     }.toString()
+
+    fun speechResult(text: String): String = JSONObject().apply {
+        put("type", SPEECH_RESULT)
+        put("text", text)
+        put("timestamp", System.currentTimeMillis())
+    }.toString()
+
+    /** Extract the "text" field from an ASSISTANT_RESPONSE (or any message). */
+    fun textOf(json: String): String = parse(json)?.optString("text").orEmpty()
 }

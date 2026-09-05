@@ -17,6 +17,7 @@ object ServerBus {
         fun onLog(line: String)
         fun onFrame(jpeg: ByteArray)
         fun onDetections(objects: List<DetectedObject>)
+        fun onAssistant(question: String, answer: String)
     }
 
     @Volatile
@@ -49,5 +50,9 @@ object ServerBus {
 
     fun detections(objects: List<DetectedObject>) {
         main.post { listener?.onDetections(objects) }
+    }
+
+    fun assistant(question: String, answer: String) {
+        main.post { listener?.onAssistant(question, answer) }
     }
 }

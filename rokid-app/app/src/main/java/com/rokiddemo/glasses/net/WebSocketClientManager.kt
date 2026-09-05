@@ -93,6 +93,10 @@ class WebSocketClientManager {
                         // High-frequency: deliver to UI, don't spam the log.
                         ClientBus.detections(text)
                     }
+                    MessageProtocol.ASSISTANT_RESPONSE -> {
+                        ClientBus.log("← $text")
+                        ClientBus.assistant(MessageProtocol.textOf(text))
+                    }
                     else -> ClientBus.log("← $text")
                 }
             }

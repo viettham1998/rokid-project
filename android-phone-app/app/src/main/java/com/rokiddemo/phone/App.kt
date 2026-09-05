@@ -1,8 +1,10 @@
 package com.rokiddemo.phone
 
 import android.app.Application
+import com.rokiddemo.phone.assistant.CommandProcessor
 import com.rokiddemo.phone.core.FrameProcessor
 import com.rokiddemo.phone.net.DiscoveryBroadcaster
+import com.rokiddemo.phone.net.MessageProtocol
 import com.rokiddemo.phone.net.WebSocketServerManager
 
 /**
@@ -27,6 +29,13 @@ class App : Application() {
         // Object detection: each incoming JPEG -> detect -> broadcast result to glasses.
         frameProcessor = FrameProcessor(this) { json -> server.broadcastText(json) }
         server.onBinary = { bytes -> frameProcessor.submit(bytes) }
+
+        // Speech: recognized text from glasses -> reply using latest detections.
+        server.onSpeech = { text ->
+            val answer = CommandProcessor.respond(text, frameProcessor.lastDetections)
+            server.broadcastText(MessageProtocol.assistantResponse(answer))
+            ServerBus.assistant(text, answer)
+        }
 
         try {
             server.start()

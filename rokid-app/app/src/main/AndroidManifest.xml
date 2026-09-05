@@ -9,6 +9,15 @@
     <!-- Phase 2: capture frames from the glasses camera -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+    <!-- Phase 4: speech recognition on the glasses -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- So SpeechRecognizer can find the recognition service on Android 11+ -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
 
     <application
         android:allowBackup="true"

@@ -25,6 +25,9 @@ class WebSocketServerManager(private val serverPort: Int) : WebSocketServer(Inet
     /** Called for each incoming JPEG frame (binary). Set by App to run detection. */
     var onBinary: ((ByteArray) -> Unit)? = null
 
+    /** Called with recognized speech text from the glasses (Phase 4). */
+    var onSpeech: ((String) -> Unit)? = null
+
     init {
         isReuseAddr = true
         // Drop dead connections after 60s of silence (glasses will ping/reconnect).
@@ -56,8 +59,11 @@ class WebSocketServerManager(private val serverPort: Int) : WebSocketServer(Inet
                 conn.send(ack)
                 ServerBus.log("→ $ack")
             }
+            MessageProtocol.SPEECH_RESULT -> {
+                onSpeech?.invoke(MessageProtocol.textOf(message))
+            }
             else -> {
-                // Unknown types are ignored in Phase 1.
+                // Other types ignored.
             }
         }
     }

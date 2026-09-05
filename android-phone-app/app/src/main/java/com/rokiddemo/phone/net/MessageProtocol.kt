@@ -44,6 +44,15 @@ object MessageProtocol {
         put("timestamp", System.currentTimeMillis())
     }.toString()
 
+    /** Get the "text" field of a message (e.g. SPEECH_RESULT), or "". */
+    fun textOf(json: String): String = parse(json)?.optString("text").orEmpty()
+
+    fun assistantResponse(text: String): String = JSONObject().apply {
+        put("type", ASSISTANT_RESPONSE)
+        put("text", text)
+        put("timestamp", System.currentTimeMillis())
+    }.toString()
+
     fun detectionResult(objects: List<DetectedObject>): String {
         val arr = JSONArray()
         for (o in objects) {
