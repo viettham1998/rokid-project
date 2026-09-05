@@ -18,6 +18,7 @@ object ServerBus {
         fun onFrame(jpeg: ByteArray)
         fun onDetections(objects: List<DetectedObject>)
         fun onAssistant(question: String, answer: String)
+        fun onAudioReceived(sizeBytes: Int)
     }
 
     @Volatile
@@ -54,5 +55,9 @@ object ServerBus {
 
     fun assistant(question: String, answer: String) {
         main.post { listener?.onAssistant(question, answer) }
+    }
+
+    fun audioReceived(sizeBytes: Int) {
+        main.post { listener?.onAudioReceived(sizeBytes) }
     }
 }

@@ -1,10 +1,8 @@
 package com.rokiddemo.phone
 
 import android.app.Application
-import com.rokiddemo.phone.core.AudioProcessor
 import com.rokiddemo.phone.core.FrameProcessor
 import com.rokiddemo.phone.net.DiscoveryBroadcaster
-import com.rokiddemo.phone.net.MessageProtocol
 import com.rokiddemo.phone.net.WebSocketServerManager
 
 /**
@@ -20,7 +18,11 @@ class App : Application() {
 
     private lateinit var discovery: DiscoveryBroadcaster
     private lateinit var frameProcessor: FrameProcessor
-    private lateinit var audioProcessor: AudioProcessor
+
+    /** Last utterance the glasses sent — held for the phone's Play button. */
+    @Volatile
+    var lastAudio: ByteArray = ByteArray(0)
+        private set
 
     override fun onCreate() {
         super.onCreate()
@@ -31,12 +33,12 @@ class App : Application() {
         frameProcessor = FrameProcessor(this) { json -> server.broadcastText(json) }
         server.onBinary = { bytes -> frameProcessor.submit(bytes) }
 
-        // Speech (Plan B): glasses stream PCM -> transcribe (Vosk) -> reply.
-        audioProcessor = AudioProcessor(this, { frameProcessor.lastDetections }) { q, a ->
-            server.broadcastText(MessageProtocol.assistantResponse(q, a))
-            ServerBus.assistant(q, a)
+        // Audio: just store the glasses' recording so the phone can play it back
+        // (no AI for now).
+        server.onAudio = { pcm ->
+            lastAudio = pcm
+            ServerBus.audioReceived(pcm.size)
         }
-        server.onAudio = { pcm -> audioProcessor.submit(pcm) }
 
         try {
             server.start()

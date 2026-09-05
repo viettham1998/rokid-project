@@ -13,6 +13,7 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.rokiddemo.phone.audio.AudioPlayer
 import com.rokiddemo.phone.util.NetworkUtils
 import com.rokiddemo.phone.vision.DetectedObject
 
@@ -27,7 +28,8 @@ class MainActivity : AppCompatActivity(), ServerBus.Listener {
     private lateinit var preview: ImageView
     private lateinit var frameStats: TextView
     private lateinit var detText: TextView
-    private lateinit var asrText: TextView
+    private lateinit var playButton: Button
+    private lateinit var audioText: TextView
 
     private var frameCount = 0
     private var lastFpsTs = 0L
@@ -45,7 +47,9 @@ class MainActivity : AppCompatActivity(), ServerBus.Listener {
         preview = findViewById(R.id.preview)
         frameStats = findViewById(R.id.frameStats)
         detText = findViewById(R.id.detText)
-        asrText = findViewById(R.id.asrText)
+        playButton = findViewById(R.id.playButton)
+        audioText = findViewById(R.id.audioText)
+        playButton.setOnClickListener { AudioPlayer.play(App.instance.lastAudio) }
 
         portText.text = "Port: ${App.PORT}"
         findViewById<Button>(R.id.refreshButton).setOnClickListener { refreshIps() }
@@ -120,6 +124,13 @@ class MainActivity : AppCompatActivity(), ServerBus.Listener {
     }
 
     override fun onAssistant(question: String, answer: String) {
-        asrText.text = "You: $question\nAI: $answer"
+        // AI replies are disabled for now; audio is played back instead.
+    }
+
+    override fun onAudioReceived(sizeBytes: Int) {
+        val seconds = sizeBytes / 32000.0   // 16kHz * 2 bytes
+        audioText.text = "Audio from glasses: %.1f KB (%.1fs) — tap Play"
+            .format(sizeBytes / 1024.0, seconds)
+        playButton.isEnabled = sizeBytes > 0
     }
 }
