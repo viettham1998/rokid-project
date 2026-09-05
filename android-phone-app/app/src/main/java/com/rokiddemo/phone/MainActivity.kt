@@ -1,12 +1,18 @@
 package com.rokiddemo.phone
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
+import android.os.Build
 import android.os.Bundle
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.rokiddemo.phone.util.NetworkUtils
 import com.rokiddemo.phone.vision.DetectedObject
 
@@ -46,6 +52,17 @@ class MainActivity : AppCompatActivity(), ServerBus.Listener {
         findViewById<Button>(R.id.clearButton).setOnClickListener { logText.text = "" }
 
         refreshIps()
+
+        // Android 13+: notification permission so the foreground-service notice shows.
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(
+                this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 2001
+            )
+        }
+        // Keep the server alive/unfrozen in the background.
+        ContextCompat.startForegroundService(this, Intent(this, ServerService::class.java))
     }
 
     private fun refreshIps() {
