@@ -26,8 +26,8 @@ import java.util.concurrent.Executors
 class CameraStreamer(
     private val context: Context,
     private val lifecycleOwner: LifecycleOwner,
-    private val maxDim: Int = 640,
-    private val jpegQuality: Int = 75,
+    private val maxDim: Int = 512,
+    private val jpegQuality: Int = 70,
     private val onJpeg: (ByteArray) -> Unit
 ) {
     private val exec = Executors.newSingleThreadExecutor()
